@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>足彩场次分析工具</title>
+<style>
+  :root {
+    --bg0: #0f1a14; --bg1: #16241c; --bg2: #1d3227;
+    --line: rgba(120, 180, 140, 0.22); --text: #e8f2ea; --muted: #8aa892;
+    --accent: #2fbf71; --accent2: #e8b84a; --home: #3ecf8e; --away: #5bb8e8;
+    --danger: #e86a6a; --card: rgba(255,255,255,0.04);
+    --shadow: 0 12px 40px rgba(0,0,0,0.35); --radius: 14px;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(47,191,113,0.18), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, rgba(91,184,232,0.12), transparent 50%),
+      linear-gradient(165deg, var(--bg0), var(--bg1) 45%, #101910);
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; }
+  header {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
+    justify-content: space-between; margin-bottom: 22px;
+  }
+  .brand h1 { margin: 0; font-size: 28px; font-weight: 720; }
+  .brand p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+  .meta {
+    font-size: 12px; color: var(--muted); background: var(--card);
+    border: 1px solid var(--line); padding: 8px 12px; border-radius: 999px;
+  }
+  .slicer {
+    display: inline-flex; padding: 4px; gap: 4px;
+    background: rgba(0,0,0,0.28); border: 1px solid var(--line);
+    border-radius: 999px; margin-bottom: 18px;
+  }
+  .slicer button {
+    appearance: none; border: 0; cursor: pointer; background: transparent;
+    color: var(--muted); padding: 10px 22px; border-radius: 999px;
+    font-size: 14px; font-weight: 600;
+  }
+  .slicer button.active {
+    background: linear-gradient(135deg, #2fbf71, #1f9a58);
+    color: #062114; box-shadow: 0 6px 18px rgba(47,191,113,0.35);
+  }
+  .panel { display: none; }
+  .panel.active { display: block; animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+  select, button.btn, input[type="date"] {
+    background: var(--bg2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; font-size: 14px; outline: none;
+  }
+  select { min-width: min(100%, 520px); flex: 1; }
+  button.btn {
+    cursor: pointer; font-weight: 650;
+    background: linear-gradient(135deg, rgba(47,191,113,0.25), rgba(47,191,113,0.08));
+  }
+  button.btn:hover { border-color: var(--accent); }
+  button.btn:disabled { opacity: .5; cursor: wait; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 16px; margin-bottom: 14px;
+  }
+  .card h2 {
+    margin: 0 0 12px; font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .dot.away { background: var(--away); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  tr:hover td { background: rgba(255,255,255,0.03); }
+  .score { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 28px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  }
+  .pill.win { background: rgba(47,191,113,0.2); color: var(--home); }
+  .pill.draw { background: rgba(232,184,74,0.18); color: var(--accent2); }
+  .pill.lose { background: rgba(232,106,106,0.18); color: var(--danger); }
+  .buckets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  @media (max-width: 640px) { .buckets { grid-template-columns: repeat(2, 1fr); } }
+  .bucket {
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px;
+    background: rgba(0,0,0,0.18); text-align: center; position: relative;
+  }
+  .bucket .lab { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .bucket .num { font-size: 28px; font-weight: 780; line-height: 1; }
+  .bucket.top {
+    border-color: var(--accent2);
+    background: linear-gradient(160deg, rgba(232,184,74,0.22), rgba(232,184,74,0.05));
+  }
+  .bucket.top::after {
+    content: "最多"; position: absolute; top: 8px; right: 8px;
+    font-size: 10px; color: #3a2a05; background: var(--accent2);
+    padding: 2px 6px; border-radius: 999px; font-weight: 700;
+  }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.5; }
+  .status { min-height: 20px; color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+  .status.err { color: var(--danger); }
+  .match-title { font-size: 18px; font-weight: 720; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .vs { color: var(--accent2); margin: 0 8px; }
+  .empty {
+    padding: 28px; text-align: center; color: var(--muted);
+    border: 1px dashed var(--line); border-radius: var(--radius);
+  }
+  .scroll { overflow: auto; max-height: 420px; }
+  .tag {
+    display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 6px;
+    background: rgba(255,255,255,0.06); color: var(--muted); margin-right: 6px;
+  }
+  .tag.league { color: #cde8d5; border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>足彩场次分析工具</h1>
+      <p>HTML 直连竞彩公网 webapi.sporttery.cn · 双击本文件即可使用</p>
+    </div>
+    <div class="meta" id="clockMeta">加载中…</div>
+  </header>
+
+  <div class="slicer" role="tablist">
+    <button type="button" class="active" data-tab="analyze">① 场次进球分析</button>
+    <button type="button" data-tab="yesterday">② 前一天赛果</button>
+  </div>
+
+  <section class="panel active" id="panel-analyze">
+    <div class="toolbar">
+      <select id="matchSelect"><option value="">正在加载在售场次…</option></select>
+      <button class="btn" id="btnRefreshMatches" type="button">刷新场次</button>
+      <button class="btn" id="btnAnalyze" type="button" disabled>分析近10场</button>
+    </div>
+    <div class="status" id="analyzeStatus"></div>
+    <div id="analyzeEmpty" class="empty">请选择一场竞彩足球场次后开始分析。</div>
+    <div id="analyzeBody" style="display:none">
+      <div class="card">
+        <div class="match-title" id="selTitle">—</div>
+        <div class="sub" id="selSub">—</div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2><span class="dot"></span><span id="homeName">主队</span> · 近10场</h2>
+          <div class="scroll"><table>
+            <thead><tr><th>日期</th><th>赛事</th><th>对阵</th><th>比分</th><th>总球</th><th>赛果</th></tr></thead>
+            <tbody id="homeRows"></tbody>
+          </table></div>
+          <div class="buckets" id="homeBuckets"></div>
+          <div class="hint" id="homeHint"></div>
+        </div>
+        <div class="card">
+          <h2><span class="dot away"></span><span id="awayName">客队</span> · 近10场</h2>
+          <div class="scroll"><table>
+            <thead><tr><th>日期</th><th>赛事</th><th>对阵</th><th>比分</th><th>总球</th><th>赛果</th></tr></thead>
+            <tbody id="awayRows"></tbody>
+          </table></div>
+          <div class="buckets" id="awayBuckets"></div>
+          <div class="hint" id="awayHint"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-yesterday">
+    <div class="toolbar">
+      <label class="sub" for="resultDate">场次日期</label>
+      <input type="date" id="resultDate" />
+      <select id="dateMode" style="min-width:180px;flex:0">
+        <option value="kick">按开赛日期</option>
+        <option value="biz">按竞彩编号日</option>
+      </select>
+      <button class="btn" id="btnLoadYesterday" type="button">加载赛果</button>
+    </div>
+    <div class="status" id="yesterdayStatus"></div>
+    <div class="card">
+      <h2><span class="dot"></span>胜负 / 比分 / 半全场</h2>
+      <div class="scroll" style="max-height:640px">
+        <table>
+          <thead>
+            <tr>
+              <th>编号</th><th>联赛</th><th>开赛</th>
+              <th>主队</th><th>半场</th><th>全场</th><th>客队</th>
+              <th>胜负</th><th>半全场</th>
+            </tr>
+          </thead>
+          <tbody id="resultRows"></tbody>
+        </table>
+      </div>
+      <div class="hint">半全场依据半场/全场比分推算。未完赛场次会标注状态。</div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // 竞彩公网接口
+  const API = {
+    calc: 'https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?clientCode=3001',
+    live: 'https://webapi.sporttery.cn/gateway/uniform/fb/getMatchDataPageListV1.qry?method=live&pageNo=1&pageSize=100&clientCode=3001',
+    result: 'https://webapi.sporttery.cn/gateway/uniform/fb/getMatchDataPageListV1.qry',
+  };
+  // 浏览器直连 file:// 时无法带官方 Referer，赛果接口会被拒；
+  // 自动回落到公网转发（仍拉取 webapi.sporttery.cn 官方数据）。
+  const PUBLIC_RELAY = 'https://workflow.rigol.com/webhook/zucai-sporttery-proxy?url=';
+
+  const BUCKETS = [
+    { key: 'b01', label: '0~1', test: g => g <= 1 },
+    { key: 'b12', label: '1~2', test: g => g === 2 },
+    { key: 'b34', label: '3~4', test: g => g === 3 || g === 4 },
+    { key: 'b5',  label: '5+',  test: g => g >= 5 },
+  ];
+
+  const state = {
+    matches: [],
+    history: [],
+    historyLoaded: false,
+    via: '',
+  };
+
+  const $ = id => document.getElementById(id);
+  function setStatus(el, msg, isErr) {
+    el.textContent = msg || '';
+    el.classList.toggle('err', !!isErr);
+  }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function fmtDate(d) {
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  function parseScore(s) {
+    if (!s || typeof s !== 'string' || !s.includes(':')) return null;
+    const [a, b] = s.split(':').map(Number);
+    if (Number.isNaN(a) || Number.isNaN(b)) return null;
+    return { home: a, away: b, total: a + b };
+  }
+  function hadLabel(home, away) {
+    if (home > away) return '胜';
+    if (home < away) return '负';
+    return '平';
+  }
+  function halfFullLabel(ht, ft) {
+    const map = { H: '胜', D: '平', A: '负' };
+    const half = ht.home > ht.away ? 'H' : ht.home < ht.away ? 'A' : 'D';
+    const full = ft.home > ft.away ? 'H' : ft.home < ft.away ? 'A' : 'D';
+    return map[half] + map[full];
+  }
+
+  async function rawFetch(url) {
+    const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function fetchJson(sportteryUrl) {
+    // 1) 优先直连竞彩公网
+    try {
+      const data = await rawFetch(sportteryUrl);
+      if (data && data.success !== false) {
+        state.via = '直连竞彩公网';
+        return data;
+      }
+      throw new Error((data && data.errorMessage) || '接口返回失败');
+    } catch (directErr) {
+      // 2) 自动走公网转发（给竞彩接口补 Referer）
+      try {
+        const data = await rawFetch(PUBLIC_RELAY + encodeURIComponent(sportteryUrl));
+        if (data && data.success !== false) {
+          state.via = '竞彩公网(中继)';
+          return data;
+        }
+        throw new Error((data && data.errorMessage) || '中继返回失败');
+      } catch (relayErr) {
+        throw new Error(directErr.message + ' / ' + relayErr.message);
+      }
+    }
+  }
+
+  function flattenMatchDays(matchInfoList) {
+    const out = [];
+    (matchInfoList || []).forEach(day => {
+      (day.subMatchList || []).forEach(m => out.push(m));
+    });
+    return out;
+  }
+
+  async function loadSellingMatches() {
+    const sel = $('matchSelect');
+    sel.innerHTML = '<option value="">加载中…</option>';
+    $('btnAnalyze').disabled = true;
+    setStatus($('analyzeStatus'), '正在连接竞彩公网…');
+    try {
+      const [calcData, liveData] = await Promise.all([
+        fetchJson(API.calc).catch(() => null),
+        fetchJson(API.live).catch(() => null),
+      ]);
+      const map = new Map();
+      const pushAll = arr => {
+        (arr || []).forEach(m => {
+          if (!m || m.matchId == null) return;
+          map.set(m.matchId, Object.assign({}, map.get(m.matchId) || {}, m));
+        });
+      };
+      if (calcData) pushAll(flattenMatchDays(calcData.value && calcData.value.matchInfoList));
+      if (liveData) pushAll(flattenMatchDays(liveData.value && liveData.value.matchInfoList));
+      const list = [...map.values()].sort((a, b) => {
+        const da = `${a.businessDate || a.matchDate || ''}${a.matchNum || 0}`;
+        const db = `${b.businessDate || b.matchDate || ''}${b.matchNum || 0}`;
+        return da.localeCompare(db);
+      });
+      state.matches = list;
+      if (!list.length) {
+        sel.innerHTML = '<option value="">暂无场次</option>';
+        setStatus($('analyzeStatus'), '当前无可用竞彩足球场次。', true);
+        return;
+      }
+      sel.innerHTML = '<option value="">请选择场次（' + list.length + '）</option>' +
+        list.map((m, i) => {
+          const t = String(m.matchTime || '').slice(0, 5);
+          const label = `${m.matchNumStr || m.matchNum || ''}｜${m.leagueAbbName || ''}｜${m.homeTeamAbbName || m.homeTeamAllName} vs ${m.awayTeamAbbName || m.awayTeamAllName}｜${m.matchDate || ''} ${t}`;
+          return `<option value="${i}">${label}</option>`;
+        }).join('');
+      setStatus($('analyzeStatus'), `已加载 ${list.length} 场 · ${state.via || '竞彩公网'}`);
+      $('clockMeta').textContent = '本地时间 ' + new Date().toLocaleString('zh-CN') + ' · ' + (state.via || '竞彩公网');
+    } catch (e) {
+      sel.innerHTML = '<option value="">加载失败</option>';
+      setStatus($('analyzeStatus'), '加载场次失败：' + e.message, true);
+    }
+  }
+
+  async function ensureHistory(minPages = 8) {
+    if (state.historyLoaded && state.history.length) return state.history;
+    setStatus($('analyzeStatus'), '正在拉取竞彩历史赛果…');
+    const all = [];
+    for (let pageNo = 1; pageNo <= minPages; pageNo++) {
+      const url = `${API.result}?method=result&pageNo=${pageNo}&pageSize=100&clientCode=3001`;
+      const data = await fetchJson(url);
+      const batch = flattenMatchDays(data.value && data.value.matchInfoList);
+      if (!batch.length) break;
+      all.push(...batch);
+      if (batch.length < 20) break;
+    }
+    state.history = all
+      .filter(m => m.sectionsNo999 && String(m.sectionsNo999).includes(':'))
+      .sort((a, b) => String(b.matchDate + (b.matchTime || '')).localeCompare(String(a.matchDate + (a.matchTime || ''))));
+    state.historyLoaded = true;
+    return state.history;
+  }
+
+  function teamRecent(teamId, limit = 10) {
+    const id = String(teamId);
+    const rows = [];
+    for (const m of state.history) {
+      if (String(m.homeTeamId) !== id && String(m.awayTeamId) !== id) continue;
+      const ft = parseScore(m.sectionsNo999);
+      if (!ft) continue;
+      const isHome = String(m.homeTeamId) === id;
+      const resultCode = isHome
+        ? (ft.home > ft.away ? 'W' : ft.home < ft.away ? 'L' : 'D')
+        : (ft.away > ft.home ? 'W' : ft.away < ft.home ? 'L' : 'D');
+      rows.push({
+        date: m.matchDate,
+        home: m.homeTeamAbbName,
+        away: m.awayTeamAbbName,
+        isHome,
+        score: m.sectionsNo999,
+        total: ft.total,
+        resultCode,
+        league: m.leagueAbbName || m.leagueAllName || '',
+      });
+      if (rows.length >= limit) break;
+    }
+    return rows;
+  }
+
+  function bucketStats(rows) {
+    const counts = Object.fromEntries(BUCKETS.map(b => [b.key, 0]));
+    rows.forEach(r => {
+      for (const b of BUCKETS) {
+        if (b.test(r.total)) { counts[b.key]++; break; }
+      }
+    });
+    let topVal = -1;
+    BUCKETS.forEach(b => { if (counts[b.key] > topVal) topVal = counts[b.key]; });
+    const maxKeys = new Set(BUCKETS.filter(b => counts[b.key] === topVal && topVal > 0).map(b => b.key));
+    return { counts, maxKeys, topVal };
+  }
+
+  function renderBuckets(el, stats) {
+    el.innerHTML = BUCKETS.map(b => {
+      const top = stats.maxKeys.has(b.key) ? ' top' : '';
+      return `<div class="bucket${top}"><div class="lab">${b.label} 球</div><div class="num">${stats.counts[b.key]}</div></div>`;
+    }).join('');
+  }
+
+  function renderTeamTable(tbody, rows) {
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6">近况样本不足（竞彩历史中未凑满场次）</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const side = r.isHome ? '主' : '客';
+      const pill = r.resultCode === 'W'
+        ? '<span class="pill win">胜</span>'
+        : r.resultCode === 'D'
+          ? '<span class="pill draw">平</span>'
+          : '<span class="pill lose">负</span>';
+      return `<tr>
+        <td>${r.date || ''}</td>
+        <td><span class="tag league">${r.league || '—'}</span></td>
+        <td><span class="tag">${side}</span>${r.home || ''} <span class="vs">vs</span> ${r.away || ''}</td>
+        <td class="score">${r.score}</td>
+        <td class="score">${r.total}</td>
+        <td>${pill}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function analyzeSelected() {
+    const idx = $('matchSelect').value;
+    if (idx === '') {
+      setStatus($('analyzeStatus'), '请先选择场次。', true);
+      return;
+    }
+    const m = state.matches[Number(idx)];
+    if (!m) return;
+    $('btnAnalyze').disabled = true;
+    $('analyzeEmpty').style.display = 'none';
+    $('analyzeBody').style.display = 'block';
+    $('selTitle').innerHTML = `${m.homeTeamAbbName || m.homeTeamAllName}<span class="vs">vs</span>${m.awayTeamAbbName || m.awayTeamAllName}`;
+    $('selSub').textContent = `${m.matchNumStr || ''} · ${m.leagueAbbName || m.leagueAllName || ''} · ${m.matchDate || ''} ${String(m.matchTime || '').slice(0,5)} · matchId ${m.matchId}`;
+    $('homeName').textContent = m.homeTeamAbbName || m.homeTeamAllName || '主队';
+    $('awayName').textContent = m.awayTeamAbbName || m.awayTeamAllName || '客队';
+    setStatus($('analyzeStatus'), '分析中…');
+    try {
+      await ensureHistory(8);
+      const homeRows = teamRecent(m.homeTeamId, 10);
+      const awayRows = teamRecent(m.awayTeamId, 10);
+      renderTeamTable($('homeRows'), homeRows);
+      renderTeamTable($('awayRows'), awayRows);
+      const hs = bucketStats(homeRows);
+      const as = bucketStats(awayRows);
+      renderBuckets($('homeBuckets'), hs);
+      renderBuckets($('awayBuckets'), as);
+      const tip = (stats, rows) => {
+        if (!rows.length) return '暂无足够样本';
+        const labels = BUCKETS.filter(b => stats.maxKeys.has(b.key)).map(b => b.label).join('、');
+        return `近 ${rows.length} 场总进球挡位最多落在【${labels}】（${stats.topVal} 次）。样本来自竞彩已开奖历史。`;
+      };
+      $('homeHint').textContent = tip(hs, homeRows);
+      $('awayHint').textContent = tip(as, awayRows);
+      setStatus($('analyzeStatus'), `完成 · ${state.via} · 历史 ${state.history.length} 场；主 ${homeRows.length} / 客 ${awayRows.length}`);
+    } catch (e) {
+      setStatus($('analyzeStatus'), '分析失败：' + e.message, true);
+    } finally {
+      $('btnAnalyze').disabled = false;
+    }
+  }
+
+  async function loadYesterday() {
+    const dateStr = $('resultDate').value;
+    const mode = $('dateMode').value;
+    if (!dateStr) return;
+    setStatus($('yesterdayStatus'), '正在加载赛果…');
+    $('resultRows').innerHTML = '';
+    try {
+      const all = [];
+      for (let pageNo = 1; pageNo <= 5; pageNo++) {
+        const url = `${API.result}?method=result&pageNo=${pageNo}&pageSize=100&clientCode=3001`;
+        const data = await fetchJson(url);
+        const batch = flattenMatchDays(data.value && data.value.matchInfoList);
+        if (!batch.length) break;
+        all.push(...batch);
+      }
+      const compact = dateStr.slice(2).replace(/-/g, '');
+      const filtered = all.filter(m => mode === 'biz'
+        ? (m.businessDate === dateStr || m.matchNumDate === compact)
+        : m.matchDate === dateStr);
+      const map = new Map();
+      filtered.forEach(m => map.set(m.matchId, m));
+      const list = [...map.values()].sort((a, b) => Number(a.matchNum || 0) - Number(b.matchNum || 0));
+      if (!list.length) {
+        $('resultRows').innerHTML = '<tr><td colspan="9">该日期暂无赛果数据</td></tr>';
+        setStatus($('yesterdayStatus'), `未找到 ${dateStr} 的场次。`);
+        return;
+      }
+      $('resultRows').innerHTML = list.map(m => {
+        const ft = parseScore(m.sectionsNo999);
+        const ht = parseScore(m.sectionsNo1);
+        let had = '—', hafu = '—';
+        const htText = m.sectionsNo1 || '—';
+        const ftText = m.sectionsNo999 || '—';
+        if (ft) {
+          const lab = hadLabel(ft.home, ft.away);
+          had = lab === '胜' ? '<span class="pill win">胜</span>'
+            : lab === '平' ? '<span class="pill draw">平</span>'
+            : '<span class="pill lose">负</span>';
+          if (ht) hafu = halfFullLabel(ht, ft);
+        } else {
+          had = `<span class="tag">${m.matchStatusName || '未完赛'}</span>`;
+        }
+        return `<tr>
+          <td>${m.matchNumStr || m.matchNum || ''}</td>
+          <td><span class="tag league">${m.leagueAbbName || ''}</span></td>
+          <td>${m.matchDate || ''} ${m.matchTime || ''}</td>
+          <td>${m.homeTeamAbbName || m.homeTeamAllName || ''}</td>
+          <td class="score">${htText}</td>
+          <td class="score">${ftText}</td>
+          <td>${m.awayTeamAbbName || m.awayTeamAllName || ''}</td>
+          <td>${had}</td>
+          <td>${hafu}</td>
+        </tr>`;
+      }).join('');
+      setStatus($('yesterdayStatus'), `共 ${list.length} 场 · ${state.via || '竞彩公网'}`);
+    } catch (e) {
+      setStatus($('yesterdayStatus'), '加载失败：' + e.message, true);
+    }
+  }
+
+  document.querySelectorAll('.slicer button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.slicer button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      $('panel-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+  $('btnRefreshMatches').addEventListener('click', loadSellingMatches);
+  $('btnAnalyze').addEventListener('click', analyzeSelected);
+  $('matchSelect').addEventListener('change', () => {
+    $('btnAnalyze').disabled = $('matchSelect').value === '';
+  });
+  $('btnLoadYesterday').addEventListener('click', loadYesterday);
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  $('resultDate').value = fmtDate(yesterday);
+  $('clockMeta').textContent = '本地时间 ' + new Date().toLocaleString('zh-CN');
+  loadSellingMatches();
+  loadYesterday();
+})();
+</script>
+</body>
+</html>
